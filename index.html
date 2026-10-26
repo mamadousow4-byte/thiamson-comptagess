@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Thiamson - Comptages Précis</title>
+    <title>Thiamson - Comptages Intelligent</title>
     <style>
         :root {
             --primary: #1e40af;
@@ -12,196 +12,182 @@
             --text-color: #0f172a;
             --border-color: #e2e8f0;
             --danger: #ef4444;
+            --success: #16a34a;
         }
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
         body { background-color: var(--bg-color); color: var(--text-color); display: flex; flex-direction: column; align-items: center; padding: 12px; min-height: 100vh; }
         .container { width: 100%; max-width: 600px; background: var(--card-bg); border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); padding: 16px; display: flex; flex-direction: column; gap: 14px; }
         h1 { color: var(--primary); font-size: 1.4rem; text-align: center; font-weight: 800; }
-        .counter-badge { background: linear-gradient(135deg, #1e40af, #2563eb); color: white; border-radius: 12px; padding: 16px; text-align: center; }
-        .counter-badge .value { font-size: 3rem; font-weight: 900; }
+        .result-card { background: linear-gradient(135deg, #1e40af, #2563eb); color: white; border-radius: 12px; padding: 16px; text-align: center; }
+        .result-card .title-detected { font-size: 1.1rem; font-weight: 600; margin-bottom: 6px; opacity: 0.9; }
+        .result-card .value { font-size: 2.5rem; font-weight: 900; }
         .btn { border: none; padding: 14px; border-radius: 10px; font-weight: bold; font-size: 1rem; cursor: pointer; text-align: center; background: var(--primary); color: white; width: 100%; transition: 0.2s; }
+        .btn:active { opacity: 0.9; }
         .btn-danger { background: var(--danger); }
-        input[type="file"] { display: none; }
-        .image-viewport { position: relative; width: 100%; min-height: 220px; background: #000; border-radius: 12px; overflow: hidden; display: flex; align-items: center; justify-content: center; }
-        canvas { max-width: 100%; max-height: 50vh; object-fit: contain; cursor: crosshair; }
+        input[type="file"], input[type="password"] { display: none; }
+        .image-viewport { position: relative; width: 100%; min-height: 250px; background: #000; border-radius: 12px; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+        img, canvas { max-width: 100%; max-height: 50vh; object-fit: contain; }
         .placeholder { color: #94a3b8; text-align: center; padding: 20px; font-size: 0.9rem; }
-        .controls-panel { background: #f1f5f9; padding: 12px; border-radius: 10px; display: flex; flex-direction: column; gap: 10px; }
-        .control-group { display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; font-weight: 600; color: #475569; }
-        input[type="range"] { width: 55%; accent-color: var(--primary); }
+        .config-box { background: #f1f5f9; padding: 10px; border-radius: 8px; font-size: 0.85rem; display: flex; flex-direction: column; gap: 6px; }
+        .config-box input { padding: 8px; border-radius: 6px; border: 1px solid var(--border-color); font-size: 0.9rem; width: 100%; }
+        .loading { font-size: 0.9rem; color: #2563eb; font-weight: bold; text-align: center; display: none; }
     </style>
 </head>
 <body>
 
     <div class="container">
-        <h1>Thiamson - Comptages</h1>
+        <h1>Thiamson - Comptages IA</h1>
 
-        <div class="counter-badge">
-            <div>Total Objets Uniques</div>
+        <div class="config-box">
+            <label for="api-key"><b>Clé API Gemini :</b></label>
+            <input type="password" id="api-key" placeholder="Collez votre clé API ici..." onchange="saveApiKey()">
+            <small style="color: #64748b;">Nécessaire pour l'analyse intelligente et la reconnaissance des objets/animaux.</small>
+        </div>
+
+        <div class="result-card">
+            <div class="title-detected" id="category-display">En attente d'une photo...</div>
             <div class="value" id="count-display">0</div>
         </div>
 
-        <button class="btn" onclick="document.getElementById('file-input').click()">📷 Prendre une photo / Importer</button>
-        <input type="file" id="file-input" accept="image/*" capture="environment" onchange="loadImage(event)">
+        <button class="btn" onclick="triggerCapture()">📷 Prendre une photo / Importer</button>
+        <input type="file" id="file-input" accept="image/*" capture="environment" onchange="analyzeImage(event)">
+
+        <div class="loading" id="loading-text">Analyse intelligente de l'image en cours... Veuillez patienter.</div>
 
         <div class="image-viewport">
-            <div class="placeholder" id="placeholder">Prenez une photo de vos objets ou de votre troupeau.</div>
-            <canvas id="canvas" style="display: none;"></canvas>
-        </div>
-
-        <div class="controls-panel">
-            <div class="control-group">
-                <label for="object-size">Taille / Regroupement :</label>
-                <input type="range" id="object-size" min="20" max="150" value="60" oninput="runAutoDetect()">
-            </div>
-            <div class="control-group">
-                <label for="sensibility">Seuil de contraste :</label>
-                <input type="range" id="sensibility" min="10" max="90" value="40" oninput="runAutoDetect()">
-            </div>
+            <div class="placeholder" id="placeholder">Prenez une photo (ex: troupeau, sacs, foule) pour l'analyser.</div>
+            <img id="preview-img" style="display: none;" alt="Photo analysée">
         </div>
 
         <button class="btn btn-danger" onclick="resetAll()">Réinitialiser</button>
     </div>
 
     <script>
-        const canvas = document.getElementById('canvas');
-        const ctx = canvas.getContext('2d');
+        const fileInput = document.getElementById('file-input');
+        const previewImg = document.getElementById('preview-img');
         const countDisplay = document.getElementById('count-display');
+        const categoryDisplay = document.getElementById('category-display');
         const placeholder = document.getElementById('placeholder');
-        
-        let currentImage = null;
-        let points = [];
+        const loadingText = document.getElementById('loading-text');
+        const apiKeyInput = document.getElementById('api-key');
 
-        function loadImage(event) {
+        // Charger la clé API si elle est enregistrée dans le téléphone
+        window.onload = function() {
+            const savedKey = localStorage.getItem('gemini_api_key');
+            if (savedKey) {
+                apiKeyInput.value = savedKey;
+            }
+        };
+
+        function saveApiKey() {
+            localStorage.setItem('gemini_api_key', apiKeyInput.value.trim());
+        }
+
+        function triggerCapture() {
+            const key = apiKeyInput.value.trim();
+            if (!key) {
+                alert("Veuillez d'abord renseigner votre clé API Gemini dans le champ prévu en haut.");
+                return;
+            }
+            fileInput.click();
+        }
+
+        function analyzeImage(event) {
             const file = event.target.files[0];
             if (!file) return;
 
             const reader = new FileReader();
             reader.onload = function(e) {
-                const img = new Image();
-                img.onload = function() {
-                    currentImage = img;
-                    canvas.width = img.width;
-                    canvas.height = img.height;
-                    placeholder.style.display = 'none';
-                    canvas.style.display = 'block';
-                    runAutoDetect();
-                };
-                img.src = e.target.result;
+                const base64Data = e.target.result;
+                previewImg.src = base64Data;
+                previewImg.style.display = 'block';
+                placeholder.style.display = 'none';
+
+                // Lancer l'analyse par l'IA
+                sendToGeminiVision(base64Data);
             };
             reader.readAsDataURL(file);
         }
 
-        function runAutoDetect() {
-            if (!currentImage) return;
-
-            const groupingDist = parseInt(document.getElementById('object-size').value) * (canvas.width / 800);
-            const sens = parseInt(document.getElementById('sensibility').value);
-
-            const tempCanvas = document.createElement('canvas');
-            const tempCtx = tempCanvas.getContext('2d');
-            tempCanvas.width = canvas.width;
-            tempCanvas.height = canvas.height;
-            tempCtx.drawImage(currentImage, 0, 0);
-
-            const imgData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
-            const data = imgData.data;
-
-            let rawPoints = [];
-            const width = tempCanvas.width;
-            const height = tempCanvas.height;
-            const step = Math.max(6, Math.floor(groupingDist / 4));
-
-            // Étape 1 : Récupérer tous les pixels contrastés
-            for (let y = step; y < height - step; y += step) {
-                for (let x = step; x < width - step; x += step) {
-                    const idx = (y * width + x) * 4;
-                    const brightness = (data[idx] + data[idx+1] + data[idx+2]) / 3;
-
-                    if (Math.abs(brightness - 128) > (90 - sens)) {
-                        rawPoints.push({ x, y });
-                    }
-                }
+        async function sendToGeminiVision(base64Image) {
+            const apiKey = apiKeyInput.value.trim();
+            if (!apiKey) {
+                alert("Clé API manquante.");
+                return;
             }
 
-            // Étape 2 : Fusionner les pixels proches en un seul objet central (Clustering)
-            points = [];
-            rawPoints.forEach(pt => {
-                let merged = false;
-                for (let p of points) {
-                    if (Math.hypot(p.x - pt.x, p.y - pt.y) < groupingDist) {
-                        // On déplace légèrement le centre vers la moyenne pour capturer le milieu de l'objet
-                        p.x = (p.x + pt.x) / 2;
-                        p.y = (p.y + pt.y) / 2;
-                        merged = true;
-                        break;
+            loadingText.style.display = 'block';
+            categoryDisplay.innerText = "Analyse en cours...";
+            countDisplay.innerText = "...";
+
+            // Extraire les données brutes base64
+            const base64Clean = base64Image.split(',')[1];
+            const mimeType = base64Image.split(';')[0].split(':')[1];
+
+            const promptText = "Analyse cette image de manière précise. Identifie ce qu'elle représente (par exemple: troupeau de bœufs, sacs de cacao, foule humaine, objets spécifiques, etc.). Donne-moi le nom exact de la catégorie et le nombre total exact d'individus ou d'objets présents. Réponds strictement sous ce format JSON : {\"category\": \"Nom de la catégorie (ex: Bœufs, Sacs de cacao)\", \"count\": nombre_exact, \"description\": \"courte phrase de résumé\"}";
+
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+
+            const payload = {
+                contents: [
+                    {
+                        parts: [
+                            { text: promptText },
+                            {
+                                inlineData: {
+                                    mimeType: mimeType,
+                                    data: base64Clean
+                                }
+                            }
+                        ]
                     }
+                ]
+            };
+
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await response.json();
+                loadingText.style.display = 'none';
+
+                if (data.candidates && data.candidates[0].content) {
+                    const textResponse = data.candidates[0].content.parts[0].text;
+                    
+                    // Nettoyer la réponse pour extraire le JSON
+                    const jsonMatch = textResponse.match(/\{[\s\S]*\}/);
+                    if (jsonMatch) {
+                        const result = JSON.parse(jsonMatch[0]);
+                        categoryDisplay.innerText = result.category;
+                        countDisplay.innerText = result.count;
+                    } else {
+                        categoryDisplay.innerText = "Résultat brut";
+                        countDisplay.innerText = "?";
+                        alert(textResponse);
+                    }
+                } else {
+                    throw new Error("Réponse invalide de l'IA");
                 }
-                if (!merged) {
-                    points.push({ x: pt.x, y: pt.y });
-                }
-            });
 
-            redraw();
-        }
-
-        function redraw() {
-            if (!currentImage) return;
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.drawImage(currentImage, 0, 0);
-
-            const radius = Math.max(12, canvas.width / 50);
-
-            points.forEach((p, index) => {
-                ctx.beginPath();
-                ctx.arc(p.x, p.y, radius, 0, 2 * Math.PI);
-                ctx.fillStyle = '#ef4444';
-                ctx.fill();
-                ctx.lineWidth = 3;
-                ctx.strokeStyle = '#ffffff';
-                ctx.stroke();
-
-                ctx.fillStyle = '#ffffff';
-                ctx.font = `bold ${Math.max(12, radius * 0.85)}px sans-serif`;
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText(index + 1, p.x, p.y);
-            });
-
-            countDisplay.innerText = points.length;
-        }
-
-        canvas.addEventListener('click', function(e) {
-            if (!currentImage) return;
-            const rect = canvas.getBoundingClientRect();
-            const scaleX = canvas.width / rect.width;
-            const scaleY = canvas.height / rect.height;
-            const clickX = (e.clientX - rect.left) * scaleX;
-            const clickY = (e.clientY - rect.top) * scaleY;
-
-            const radius = Math.max(20, canvas.width / 30);
-            let removeIndex = -1;
-
-            points.forEach((p, i) => {
-                if (Math.hypot(p.x - clickX, p.y - clickY) < radius) {
-                    removeIndex = i;
-                }
-            });
-
-            if (removeIndex > -1) {
-                points.splice(removeIndex, 1);
-            } else {
-                points.push({ x: clickX, y: clickY });
+            } catch (error) {
+                loadingText.style.display = 'none';
+                categoryDisplay.innerText = "Erreur d'analyse";
+                countDisplay.innerText = "0";
+                alert("Erreur lors de la connexion à l'IA : " + error.message);
             }
-            redraw();
-        });
+        }
 
         function resetAll() {
-            points = [];
-            currentImage = null;
-            canvas.style.display = 'none';
+            previewImg.src = '';
+            previewImg.style.display = 'none';
             placeholder.style.display = 'block';
+            categoryDisplay.innerText = "En attente d'une photo...";
             countDisplay.innerText = '0';
-            document.getElementById('file-input').value = '';
+            fileInput.value = '';
+            loadingText.style.display = 'none';
         }
     </script>
 </body>
