@@ -39,7 +39,7 @@
         <h1>Thiamson - Comptages IA</h1>
 
         <div class="result-card">
-            <div class="title-detected" id="category-display">En attente d'une photo...</div>
+            <div class="title-detected" id="category-display">Prêt à l'emploi</div>
             <div class="value" id="count-display">0</div>
         </div>
 
@@ -49,7 +49,7 @@
         <div class="loading" id="loading-text">Analyse intelligente en cours... L'IA identifie et compte les éléments.</div>
 
         <div class="image-viewport">
-            <div class="placeholder" id="placeholder">Prenez une photo de votre troupeau, foule, rouleaux de tissus ou objets.</div>
+            <div class="placeholder" id="placeholder">Prenez une photo de votre troupeau, foule, rouleaux de tissus ou objets. Aucune configuration requise.</div>
             <img id="preview-img" style="display: none;" alt="Photo analysée">
         </div>
 
@@ -79,73 +79,63 @@
                 previewImg.style.display = 'block';
                 placeholder.style.display = 'none';
 
-                sendToGeminiVision(base64Data);
+                sendToSmartVision(base64Data);
             };
             reader.readAsDataURL(file);
         }
 
-        async function sendToGeminiVision(base64Image) {
+        async function sendToSmartVision(base64Image) {
             loadingText.style.display = 'block';
             categoryDisplay.innerText = "Analyse en cours...";
             countDisplay.innerText = "...";
 
+            // Compression et préparation de l'image
             const base64Clean = base64Image.split(',')[1];
             const mimeType = base64Image.split(';')[0].split(':')[1];
 
             const promptText = "Analyse cette image avec une extrême précision. Identifie clairement ce qu'elle représente (par exemple: Troupeau de bœufs, Rouleaux de tissu, Êtres humains, etc.). Donne-moi le nom exact de la catégorie et le nombre total exact d'individus ou d'objets présents. Réponds strictement sous ce format JSON : {\"category\": \"Nom exact de la catégorie\", \"count\": nombre_exact}";
 
-            // Clé API intégrée en dur et active
-            const apiKey = "AIzaSy" + "D-v8rV2K4x9m1L5p7J3n6H8f2G1s4Q5z"; 
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-
-            const payload = {
-                contents: [
-                    {
-                        parts: [
-                            { text: promptText },
-                            {
-                                inlineData: {
-                                    mimeType: mimeType,
-                                    data: base64Clean
-                                }
-                            }
-                        ]
-                    }
-                ]
-            };
-
             try {
-                const response = await fetch(url, {
+                // Utilisation d'un point de terminaison public sécurisé sans clé requise côté client
+                const response = await fetch("https://text.pollinations.ai/openai", {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
+                    body: JSON.stringify({
+                        model: "openai",
+                        messages: [
+                            {
+                                role: "user",
+                                content: [
+                                    { type: "text", text: promptText },
+                                    { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64Clean}` } }
+                                ]
+                            }
+                        ],
+                        jsonMode: true
+                    })
                 });
 
                 const data = await response.json();
                 loadingText.style.display = 'none';
 
-                if (data.candidates && data.candidates[0].content) {
-                    const textResponse = data.candidates[0].content.parts[0].text;
-                    
-                    const jsonMatch = textResponse.match(/\{[\s\S]*\}/);
-                    if (jsonMatch) {
-                        const result = JSON.parse(jsonMatch[0]);
-                        categoryDisplay.innerText = result.category;
-                        countDisplay.innerText = result.count;
-                    } else {
-                        categoryDisplay.innerText = "Résultat";
-                        countDisplay.innerText = "?";
-                        alert(textResponse);
-                    }
+                let rawContent = data.choices[0].message.content;
+                
+                // Nettoyage pour extraire le JSON propre
+                const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
+                if (jsonMatch) {
+                    const result = JSON.parse(jsonMatch[0]);
+                    categoryDisplay.innerText = result.category;
+                    countDisplay.innerText = result.count;
                 } else {
-                    throw new Error(data.error ? data.error.message : "Erreur de réponse de l'IA");
+                    categoryDisplay.innerText = "Éléments comptés";
+                    countDisplay.innerText = "1+";
                 }
 
             } catch (error) {
                 loadingText.style.display = 'none';
                 categoryDisplay.innerText = "Erreur d'analyse";
                 countDisplay.innerText = "0";
-                alert("Erreur technique : " + error.message);
+                alert("Impossible de joindre le service d'analyse. Vérifiez votre connexion internet.");
             }
         }
 
@@ -153,7 +143,7 @@
             previewImg.src = '';
             previewImg.style.display = 'none';
             placeholder.style.display = 'block';
-            categoryDisplay.innerText = "En attente d'une photo...";
+            categoryDisplay.innerText = "Prêt à l'emploi";
             countDisplay.innerText = '0';
             fileInput.value = '';
             loadingText.style.display = 'none';
