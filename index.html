@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Thiamson - Comptage Intelligent</title>
+    <title>Thiamson - Comptages Intelligent</title>
     <style>
         :root {
             --primary: #1e40af;
@@ -39,7 +39,7 @@
         <h1>Thiamson - Comptages IA</h1>
 
         <div class="result-card">
-            <div class="title-detected" id="category-display">Prêt à l'emploi</div>
+            <div class="title-detected" id="category-display">Mode Killer Actif</div>
             <div class="value" id="count-display">0</div>
         </div>
 
@@ -49,7 +49,7 @@
         <div class="loading" id="loading-text">Analyse intelligente en cours... L'IA identifie et compte les éléments.</div>
 
         <div class="image-viewport">
-            <div class="placeholder" id="placeholder">Prenez une photo de votre troupeau, foule, rouleaux de tissus ou objets. Fonctionne sans clé.</div>
+            <div class="placeholder" id="placeholder">Prenez une photo : bœufs, rouleaux de tissus, foules ou objets. Tout sera identifié et compté !</div>
             <img id="preview-img" style="display: none;" alt="Photo analysée">
         </div>
 
@@ -79,31 +79,85 @@
                 previewImg.style.display = 'block';
                 placeholder.style.display = 'none';
 
-                simulateSmartAnalysis(file);
+                sendToGeminiVision(base64Data);
             };
             reader.readAsDataURL(file);
         }
 
-        async function simulateSmartAnalysis(file) {
+        async function sendToGeminiVision(base64Image) {
             loadingText.style.display = 'block';
             categoryDisplay.innerText = "Analyse en cours...";
             countDisplay.innerText = "...";
 
-            // Utilisation d'un délai intelligent pour simuler l'analyse visuelle approfondie
-            setTimeout(() => {
+            const base64Clean = base64Image.split(',')[1];
+            const mimeType = base64Image.split(';')[0].split(':')[1];
+
+            const promptText = "Analyse cette image avec une extrême précision. Identifie clairement ce qu'elle représente (par exemple: Troupeau de bœufs, Rouleaux de tissu, Êtres humains, Foule, etc.). Donne-moi le nom exact de la catégorie et le nombre total exact d'individus ou d'objets présents. Réponds strictement sous ce format JSON : {\"category\": \"Nom exact de la catégorie\", \"count\": nombre_exact}";
+
+            // Votre jeton d'authentification intégré en dur pour tourner en arrière-plan à vie
+            const accessToken = "AQ.Ab8RN6I_2RK2y_yLFnMWKHw31MXV5TGJAEmXL2VNqOmobFJZfg"; 
+
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`;
+
+            const payload = {
+                contents: [
+                    {
+                        parts: [
+                            { text: promptText },
+                            {
+                                inlineData: {
+                                    mimeType: mimeType,
+                                    data: base64Clean
+                                }
+                            }
+                        ]
+                    }
+                ]
+            };
+
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${accessToken}`
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await response.json();
                 loadingText.style.display = 'none';
-                
-                // Analyse heuristique intelligente basée sur le nom du fichier ou type d'import
-                categoryDisplay.innerText = "Rouleaux de tissus / Articles";
-                countDisplay.innerText = "12"; // Résultat précis et instantané sans blocage réseau
-            }, 1500);
+
+                if (data.candidates && data.candidates[0].content) {
+                    const textResponse = data.candidates[0].content.parts[0].text;
+                    
+                    const jsonMatch = textResponse.match(/\{[\s\S]*\}/);
+                    if (jsonMatch) {
+                        const result = JSON.parse(jsonMatch[0]);
+                        categoryDisplay.innerText = result.category;
+                        countDisplay.innerText = result.count;
+                    } else {
+                        categoryDisplay.innerText = "Résultat";
+                        countDisplay.innerText = "?";
+                        alert(textResponse);
+                    }
+                } else {
+                    throw new Error(data.error ? data.error.message : "Erreur de réponse de l'IA");
+                }
+
+            } catch (error) {
+                loadingText.style.display = 'none';
+                categoryDisplay.innerText = "Erreur d'analyse";
+                countDisplay.innerText = "0";
+                alert("Erreur technique : " + error.message);
+            }
         }
 
         function resetAll() {
             previewImg.src = '';
             previewImg.style.display = 'none';
             placeholder.style.display = 'block';
-            categoryDisplay.innerText = "Prêt à l'emploi";
+            categoryDisplay.innerText = "Mode Killer Actif";
             countDisplay.innerText = '0';
             fileInput.value = '';
             loadingText.style.display = 'none';
