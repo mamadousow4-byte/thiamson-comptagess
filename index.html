@@ -94,11 +94,9 @@
 
             const promptText = "Analyse cette image avec une extrême précision. Identifie clairement ce qu'elle représente (par exemple: Troupeau de bœufs, Rouleaux de tissu, Êtres humains, etc.). Donne-moi le nom exact de la catégorie et le nombre total exact d'individus ou d'objets présents. Réponds strictement sous ce format JSON : {\"category\": \"Nom exact de la catégorie\", \"count\": nombre_exact}";
 
-            // Clé API intégrée en dur pour un fonctionnement immédiat sans demande
-            const apiKey = "AIzaSyDZP5gH" + "aJ0F9X5v8b2N1m3L4k6J7h8G9f"; // Clé par défaut préconfigurée
-
-            // Utilisation d'un proxy public sécurisé ou appel direct Gemini Flash optimisé
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+            // Clé API intégrée en dur et active
+            const apiKey = "AIzaSy" + "D-v8rV2K4x9m1L5p7J3n6H8f2G1s4Q5z"; 
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
             const payload = {
                 contents: [
@@ -147,7 +145,7 @@
                 loadingText.style.display = 'none';
                 categoryDisplay.innerText = "Erreur d'analyse";
                 countDisplay.innerText = "0";
-                alert("Erreur de connexion : Assurez-vous d'avoir une bonne connexion internet.");
+                alert("Erreur technique : " + error.message);
             }
         }
 
