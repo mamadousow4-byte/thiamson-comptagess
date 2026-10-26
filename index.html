@@ -44,9 +44,9 @@
         <h1>Thiamson - Comptages IA</h1>
 
         <div class="config-box">
-            <label for="api-key">🔑 Votre Clé API Gemini :</label>
-            <input type="text" id="api-key" placeholder="Collez votre clé ici (ex: AIzaSy...)" oninput="saveApiKey()">
-            <small style="color: #64748b; font-size: 0.75rem;">Saisie unique : elle restera enregistrée sur votre téléphone.</small>
+            <label for="api-key">🔑 Votre Clé / Jeton API :</label>
+            <input type="text" id="api-key" placeholder="Collez votre clé ici..." oninput="saveApiKey()">
+            <small style="color: #64748b; font-size: 0.75rem;">Enregistrement automatique sur votre téléphone.</small>
         </div>
 
         <div class="result-card">
@@ -76,7 +76,6 @@
         const loadingText = document.getElementById('loading-text');
         const apiKeyInput = document.getElementById('api-key');
 
-        // Charger la clé API enregistrée au démarrage
         window.onload = function() {
             const savedKey = localStorage.getItem('gemini_api_key');
             if (savedKey) {
@@ -91,7 +90,7 @@
         function triggerCapture() {
             const key = apiKeyInput.value.trim();
             if (!key) {
-                alert("Veuillez d'abord coller votre clé API Gemini dans le champ gris tout en haut.");
+                alert("Veuillez d'abord coller votre clé ou jeton API dans le champ tout en haut.");
                 apiKeyInput.focus();
                 return;
             }
@@ -130,7 +129,8 @@
 
             const promptText = "Analyse cette image avec une extrême précision. Identifie clairement ce qu'elle représente (par exemple: Troupeau de bœufs, Sacs de cacao, Êtres humains, etc.). Donne-moi le nom exact de la catégorie et le nombre total exact d'individus ou d'objets présents. Réponds strictement sous ce format JSON : {\"category\": \"Nom exact de la catégorie\", \"count\": nombre_exact}";
 
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+            // URL universelle compatible avec les clés Google AI Studio et les jetons OAuth
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`;
 
             const payload = {
                 contents: [
@@ -149,9 +149,13 @@
             };
 
             try {
+                // Utilisation des en-têtes d'autorisation pour supporter tous les types de clés
                 const response = await fetch(url, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`
+                    },
                     body: JSON.stringify(payload)
                 });
 
@@ -172,14 +176,14 @@
                         alert(textResponse);
                     }
                 } else {
-                    throw new Error("Erreur de réponse de l'IA");
+                    throw new Error(data.error ? data.error.message : "Erreur de réponse de l'IA");
                 }
 
             } catch (error) {
                 loadingText.style.display = 'none';
                 categoryDisplay.innerText = "Erreur de connexion";
                 countDisplay.innerText = "0";
-                alert("Impossible de joindre l'IA. Vérifiez votre clé API ou votre connexion internet.");
+                alert("Erreur : " + error.message);
             }
         }
 
