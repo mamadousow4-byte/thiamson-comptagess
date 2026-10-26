@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Thiamson - Comptages</title>
+    <title>Thiamson - Comptages IA</title>
     <style>
         :root {
             --primary: #1e40af;
@@ -12,19 +12,25 @@
             --text-color: #0f172a;
             --border-color: #e2e8f0;
             --danger: #ef4444;
+            --success: #16a34a;
         }
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
         body { background-color: var(--bg-color); color: var(--text-color); display: flex; flex-direction: column; align-items: center; padding: 12px; min-height: 100vh; }
-        .container { width: 100%; max-width: 600px; background: var(--card-bg); border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); padding: 16px; display: flex; flex-direction: column; gap: 16px; }
-        h1 { color: var(--primary); font-size: 1.4rem; text-align: center; }
-        .counter-badge { background: var(--primary); color: white; border-radius: 12px; padding: 16px; text-align: center; }
-        .counter-badge .value { font-size: 2.5rem; font-weight: bold; }
-        .btn { border: none; padding: 14px; border-radius: 10px; font-weight: bold; font-size: 1rem; cursor: pointer; text-align: center; background: var(--primary); color: white; width: 100%; }
+        .container { width: 100%; max-width: 600px; background: var(--card-bg); border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+        h1 { color: var(--primary); font-size: 1.4rem; text-align: center; font-weight: 800; }
+        .counter-badge { background: linear-gradient(135deg, #1e40af, #2563eb); color: white; border-radius: 12px; padding: 16px; text-align: center; }
+        .counter-badge .value { font-size: 3rem; font-weight: 900; }
+        .btn { border: none; padding: 14px; border-radius: 10px; font-weight: bold; font-size: 1rem; cursor: pointer; text-align: center; background: var(--primary); color: white; width: 100%; transition: 0.2s; }
+        .btn:active { opacity: 0.9; }
         .btn-danger { background: var(--danger); }
+        .btn-secondary { background: #e2e8f0; color: #334155; }
         input[type="file"] { display: none; }
         .image-viewport { position: relative; width: 100%; min-height: 220px; background: #000; border-radius: 12px; overflow: hidden; display: flex; align-items: center; justify-content: center; }
         canvas { max-width: 100%; max-height: 50vh; object-fit: contain; cursor: crosshair; }
         .placeholder { color: #94a3b8; text-align: center; padding: 20px; font-size: 0.9rem; }
+        .controls-panel { background: #f1f5f9; padding: 12px; border-radius: 10px; display: flex; flex-direction: column; gap: 10px; }
+        .control-group { display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; font-weight: 600; color: #475569; }
+        input[type="range"] { width: 60%; accent-color: var(--primary); }
     </style>
 </head>
 <body>
@@ -33,7 +39,7 @@
         <h1>Thiamson - Comptages</h1>
 
         <div class="counter-badge">
-            <div>Total détecté</div>
+            <div>Total Détecté</div>
             <div class="value" id="count-display">0</div>
         </div>
 
@@ -41,8 +47,19 @@
         <input type="file" id="file-input" accept="image/*" capture="environment" onchange="loadImage(event)">
 
         <div class="image-viewport">
-            <div class="placeholder" id="placeholder">Prenez une photo de votre troupeau pour lancer le comptage.</div>
+            <div class="placeholder" id="placeholder">Prenez une photo claire de votre troupeau ou de vos objets.</div>
             <canvas id="canvas" style="display: none;"></canvas>
+        </div>
+
+        <div class="controls-panel">
+            <div class="control-group">
+                <label for="object-size">Taille de l'objet :</label>
+                <input type="range" id="object-size" min="15" max="120" value="45" oninput="runAutoDetect()">
+            </div>
+            <div class="control-group">
+                <label for="sensibility">Sensibilité :</label>
+                <input type="range" id="sensibility" min="10" max="90" value="50" oninput="runAutoDetect()">
+            </div>
         </div>
 
         <button class="btn btn-danger" onclick="resetAll()">Réinitialiser</button>
@@ -80,6 +97,9 @@
         function runAutoDetect() {
             if (!currentImage) return;
 
+            const minDist = parseInt(document.getElementById('object-size').value) * (canvas.width / 800);
+            const sens = parseInt(document.getElementById('sensibility').value);
+
             const tempCanvas = document.createElement('canvas');
             const tempCtx = tempCanvas.getContext('2d');
             tempCanvas.width = canvas.width;
@@ -92,18 +112,22 @@
             points = [];
             const width = tempCanvas.width;
             const height = tempCanvas.height;
-            const step = Math.max(10, Math.floor(width / 30));
+            const step = Math.max(8, Math.floor(minDist / 2));
 
             for (let y = step; y < height - step; y += step) {
                 for (let x = step; x < width - step; x += step) {
                     const idx = (y * width + x) * 4;
-                    const brightness = (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
+                    
+                    // Calcul du contraste local et de la différence par rapport au fond
+                    const r = data[idx], g = data[idx+1], b = data[idx+2];
+                    const brightness = (r + g + b) / 3;
 
-                    // Détection simple des zones contrastées
-                    if (brightness < 120) {
+                    const targetVal = (100 - sens) * 2.55;
+
+                    if (Math.abs(brightness - 128) > (100 - sens)) {
                         let isFarEnough = true;
                         for (let p of points) {
-                            if (Math.hypot(p.x - x, p.y - y) < step) {
+                            if (Math.hypot(p.x - x, p.y - y) < minDist) {
                                 isFarEnough = false;
                                 break;
                             }
@@ -122,19 +146,19 @@
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.drawImage(currentImage, 0, 0);
 
-            const radius = Math.max(8, canvas.width / 80);
+            const radius = Math.max(10, canvas.width / 60);
 
             points.forEach((p, index) => {
                 ctx.beginPath();
                 ctx.arc(p.x, p.y, radius, 0, 2 * Math.PI);
                 ctx.fillStyle = '#ef4444';
                 ctx.fill();
-                ctx.lineWidth = 2;
+                ctx.lineWidth = 3;
                 ctx.strokeStyle = '#ffffff';
                 ctx.stroke();
 
                 ctx.fillStyle = '#ffffff';
-                ctx.font = `bold ${Math.max(10, radius)}px sans-serif`;
+                ctx.font = `bold ${Math.max(11, radius * 0.9)}px sans-serif`;
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 ctx.fillText(index + 1, p.x, p.y);
@@ -151,7 +175,20 @@
             const clickX = (e.clientX - rect.left) * scaleX;
             const clickY = (e.clientY - rect.top) * scaleY;
 
-            points.push({ x: clickX, y: clickY });
+            const radius = Math.max(15, canvas.width / 40);
+            let removeIndex = -1;
+
+            points.forEach((p, i) => {
+                if (Math.hypot(p.x - clickX, p.y - clickY) < radius) {
+                    removeIndex = i;
+                }
+            });
+
+            if (removeIndex > -1) {
+                points.splice(removeIndex, 1);
+            } else {
+                points.push({ x: clickX, y: clickY });
+            }
             redraw();
         });
 
