@@ -42,8 +42,8 @@
         <h1>Thiamson - Comptages IA</h1>
 
         <div class="config-box" id="settings-box">
-            <label for="api-key">🔑 Clé d'activation unique :</label>
-            <input type="text" id="api-key" placeholder="Collez votre clé ici (mémorisée à vie)..." oninput="saveApiKey()">
+            <label for="api-key">🔑 Jeton de connexion :</label>
+            <input type="text" id="api-key" placeholder="Votre jeton..." oninput="saveApiKey()">
         </div>
 
         <div class="result-card">
@@ -78,14 +78,13 @@
             const savedKey = localStorage.getItem('thiamson_saved_key');
             if (savedKey) {
                 apiKeyInput.value = savedKey;
-                // Si la clé est déjà enregistrée, on masque le champ pour garder l'écran propre
                 settingsBox.style.display = 'none';
             }
         };
 
         function saveApiKey() {
             const val = apiKeyInput.value.trim();
-            if (val.length > 10) {
+            if (val.length > 5) {
                 localStorage.setItem('thiamson_saved_key', val);
             }
         }
@@ -93,7 +92,7 @@
         function triggerCapture() {
             const key = apiKeyInput.value.trim();
             if (!key) {
-                alert("Veuillez entrer une clé d'activation dans le champ en haut (cela ne se fera qu'une seule fois).");
+                alert("Veuillez entrer votre jeton dans le champ en haut.");
                 apiKeyInput.focus();
                 settingsBox.style.display = 'flex';
                 return;
@@ -120,7 +119,7 @@
         async function sendToGeminiVision(base64Image) {
             const apiKey = apiKeyInput.value.trim();
             if (!apiKey) {
-                alert("Clé manquante.");
+                alert("Jeton manquant.");
                 return;
             }
 
@@ -133,7 +132,8 @@
 
             const promptText = "Analyse cette image avec une extrême précision. Identifie clairement ce qu'elle représente (par exemple: Troupeau de bœufs, Rouleaux de tissu, Êtres humains, etc.). Donne-moi le nom exact de la catégorie et le nombre total exact d'individus ou d'objets présents. Réponds strictement sous ce format JSON : {\"category\": \"Nom exact de la catégorie\", \"count\": nombre_exact}";
 
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+            // URL mise à jour pour accepter les jetons d'authentification OAuth/Cloud avec le modèle flash stable
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`;
 
             const payload = {
                 contents: [
@@ -154,7 +154,10 @@
             try {
                 const response = await fetch(url, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`
+                    },
                     body: JSON.stringify(payload)
                 });
 
@@ -169,22 +172,21 @@
                         const result = JSON.parse(jsonMatch[0]);
                         categoryDisplay.innerText = result.category;
                         countDisplay.innerText = result.count;
-                        // Masquer le champ de configuration une fois que ça a fonctionné
-                        settingsBox.style.display = 'none';
+                        settingsBox.style.display = 'none'; // Masque le champ une fois que ça a fonctionné
                     } else {
                         categoryDisplay.innerText = "Résultat";
                         countDisplay.innerText = "?";
                         alert(textResponse);
                     }
                 } else {
-                    throw new Error(data.error ? data.error.message : "Erreur d'authentification");
+                    throw new Error(data.error ? data.error.message : "Erreur de réponse");
                 }
 
             } catch (error) {
                 loadingText.style.display = 'none';
-                categoryDisplay.innerText = "Erreur de connexion";
+                categoryDisplay.innerText = "Erreur d'analyse";
                 countDisplay.innerText = "0";
-                alert("Erreur : " + error.message + ". Vérifiez votre clé ou votre connexion.");
+                alert("Erreur : " + error.message);
             }
         }
 
