@@ -3,133 +3,166 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Thiamson - Comptages IA</title>
-    
-    <!-- Meta PWA -->
-    <meta name="theme-color" content="#1e40af">
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <link rel="manifest" href="data:application/manifest+json;utf8,{%22name%22:%22Thiamson%20-%20Comptages%22,%22short_name%22:%22Thiamson%22,%22start_url%22:%22.%22,%22display%22:%22standalone%22,%22background_color%22:%22#f8fafc%22,%22theme_color%22:%22#1e40af%22,%22icons%22:[{%22src%22:%22https://via.placeholder.com/192/1e40af/ffffff?text=T-C%22,%22sizes%22:%22192x192%22,%22type%22:%22image/png%22}]}"/>
-
+    <title>Thiamson - Comptages</title>
     <style>
         :root {
             --primary: #1e40af;
-            --primary-hover: #1d4ed8;
-            --secondary: #0ea5e9;
             --bg-color: #f8fafc;
             --card-bg: #ffffff;
             --text-color: #0f172a;
             --border-color: #e2e8f0;
             --danger: #ef4444;
-            --success: #22c55e;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
+        body { background-color: var(--bg-color); color: var(--text-color); display: flex; flex-direction: column; align-items: center; padding: 12px; min-height: 100vh; }
+        .container { width: 100%; max-width: 600px; background: var(--card-bg); border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+        h1 { color: var(--primary); font-size: 1.4rem; text-align: center; }
+        .counter-badge { background: var(--primary); color: white; border-radius: 12px; padding: 16px; text-align: center; }
+        .counter-badge .value { font-size: 2.5rem; font-weight: bold; }
+        .btn { border: none; padding: 14px; border-radius: 10px; font-weight: bold; font-size: 1rem; cursor: pointer; text-align: center; background: var(--primary); color: white; width: 100%; }
+        .btn-danger { background: var(--danger); }
+        input[type="file"] { display: none; }
+        .image-viewport { position: relative; width: 100%; min-height: 220px; background: #000; border-radius: 12px; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+        canvas { max-width: 100%; max-height: 50vh; object-fit: contain; cursor: crosshair; }
+        .placeholder { color: #94a3b8; text-align: center; padding: 20px; font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Thiamson - Comptages</h1>
+
+        <div class="counter-badge">
+            <div>Total détecté</div>
+            <div class="value" id="count-display">0</div>
+        </div>
+
+        <button class="btn" onclick="document.getElementById('file-input').click()">📷 Prendre une photo / Importer</button>
+        <input type="file" id="file-input" accept="image/*" capture="environment" onchange="loadImage(event)">
+
+        <div class="image-viewport">
+            <div class="placeholder" id="placeholder">Prenez une photo de votre troupeau pour lancer le comptage.</div>
+            <canvas id="canvas" style="display: none;"></canvas>
+        </div>
+
+        <button class="btn btn-danger" onclick="resetAll()">Réinitialiser</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const countDisplay = document.getElementById('count-display');
+        const placeholder = document.getElementById('placeholder');
+        
+        let currentImage = null;
+        let points = [];
+
+        function loadImage(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    currentImage = img;
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    placeholder.style.display = 'none';
+                    canvas.style.display = 'block';
+                    runAutoDetect();
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
         }
 
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            -webkit-tap-highlight-color: transparent;
+        function runAutoDetect() {
+            if (!currentImage) return;
+
+            const tempCanvas = document.createElement('canvas');
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCanvas.width = canvas.width;
+            tempCanvas.height = canvas.height;
+            tempCtx.drawImage(currentImage, 0, 0);
+
+            const imgData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+            const data = imgData.data;
+
+            points = [];
+            const width = tempCanvas.width;
+            const height = tempCanvas.height;
+            const step = Math.max(10, Math.floor(width / 30));
+
+            for (let y = step; y < height - step; y += step) {
+                for (let x = step; x < width - step; x += step) {
+                    const idx = (y * width + x) * 4;
+                    const brightness = (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
+
+                    // Détection simple des zones contrastées
+                    if (brightness < 120) {
+                        let isFarEnough = true;
+                        for (let p of points) {
+                            if (Math.hypot(p.x - x, p.y - y) < step) {
+                                isFarEnough = false;
+                                break;
+                            }
+                        }
+                        if (isFarEnough) {
+                            points.push({ x, y });
+                        }
+                    }
+                }
+            }
+            redraw();
         }
 
-        body {
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            min-height: 100vh;
-            padding: 12px;
+        function redraw() {
+            if (!currentImage) return;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(currentImage, 0, 0);
+
+            const radius = Math.max(8, canvas.width / 80);
+
+            points.forEach((p, index) => {
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, radius, 0, 2 * Math.PI);
+                ctx.fillStyle = '#ef4444';
+                ctx.fill();
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = '#ffffff';
+                ctx.stroke();
+
+                ctx.fillStyle = '#ffffff';
+                ctx.font = `bold ${Math.max(10, radius)}px sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(index + 1, p.x, p.y);
+            });
+
+            countDisplay.innerText = points.length;
         }
 
-        header {
-            width: 100%;
-            max-width: 600px;
-            text-align: center;
-            padding: 12px 0;
-            margin-bottom: 12px;
+        canvas.addEventListener('click', function(e) {
+            if (!currentImage) return;
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            const clickX = (e.clientX - rect.left) * scaleX;
+            const clickY = (e.clientY - rect.top) * scaleY;
+
+            points.push({ x: clickX, y: clickY });
+            redraw();
+        });
+
+        function resetAll() {
+            points = [];
+            currentImage = null;
+            canvas.style.display = 'none';
+            placeholder.style.display = 'block';
+            countDisplay.innerText = '0';
+            document.getElementById('file-input').value = '';
         }
-
-        h1 {
-            color: var(--primary);
-            font-size: 1.5rem;
-            font-weight: 800;
-        }
-
-        .subtitle {
-            font-size: 0.85rem;
-            color: #64748b;
-            margin-top: 2px;
-        }
-
-        .container {
-            width: 100%;
-            max-width: 600px;
-            background: var(--card-bg);
-            border-radius: 16px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-            padding: 16px;
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-        }
-
-        .counter-badge {
-            background: linear-gradient(135deg, var(--primary), var(--secondary));
-            color: white;
-            border-radius: 12px;
-            padding: 16px;
-            text-align: center;
-            box-shadow: 0 4px 12px rgba(30, 64, 175, 0.2);
-        }
-
-        .counter-badge .label {
-            font-size: 0.9rem;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            opacity: 0.9;
-        }
-
-        .counter-badge .value {
-            font-size: 3rem;
-            font-weight: 900;
-            line-height: 1.1;
-        }
-
-        .controls-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-        }
-
-        .btn {
-            border: none;
-            padding: 14px;
-            border-radius: 10px;
-            font-weight: 700;
-            font-size: 0.95rem;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            transition: all 0.2s ease;
-        }
-
-        .btn-primary {
-            background-color: var(--primary);
-            color: white;
-        }
-
-        .btn-primary:active {
-            background-color: var(--primary-hover);
-        }
-
-        .btn-secondary {
-            background-color: #f1f5f9;
-            color: var(--text-color);
-            border: 1px solid var(--border-color);
-        }
-
-        .btn-danger
-
+    </script>
+</body>
+</html>
